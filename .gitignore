@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# venv / uv
+.venv/
+.uv-cache/
+
+# テスト・型・lint
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ビルド
+dist/
+build/
+*.egg-info/
+
+# 環境変数
+.env
+.env.local
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LLM/データ
+chroma_db/
+*.sqlite
+data/raw/

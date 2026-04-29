@@ -1,0 +1,54 @@
+stages:
+  - lint
+  - test
+  - build
+
+variables:
+  UV_CACHE_DIR: .uv-cache
+  PYTHON_VERSION: "3.12"
+
+.uv-base:
+  image: ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim
+  before_script:
+    - uv sync --all-extras --dev --frozen
+  cache:
+    key: uv-${PYTHON_VERSION}
+    paths:
+      - .uv-cache/
+      - .venv/
+
+lint:ruff:
+  extends: .uv-base
+  stage: lint
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+
+lint:mypy:
+  extends: .uv-base
+  stage: lint
+  script:
+    - uv run mypy src tests
+
+test:pytest:
+  extends: .uv-base
+  stage: test
+  script:
+    - uv run pytest --junitxml=report.xml
+  artifacts:
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+build:package:
+  extends: .uv-base
+  stage: build
+  script:
+    - uv build
+  artifacts:
+    paths:
+      - dist/
+  only:
+    - tags

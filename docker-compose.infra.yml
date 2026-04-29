@@ -1,0 +1,97 @@
+version: "3.9"
+
+# =============================================================================
+# テスト用 CI/CD インフラ (GitLab CE + GitLab Runner + Jenkins)
+# =============================================================================
+# 使い方: docker compose -f docker-compose.infra.yml up -d
+# 詳細:   docs/INFRA_SETUP.md
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # GitLab CE
+  # ---------------------------------------------------------------------------
+  gitlab:
+    image: gitlab/gitlab-ce:17-latest
+    container_name: gitlab
+    hostname: gitlab.local
+    restart: unless-stopped
+    ports:
+      - "8929:80"       # Web UI
+      - "2224:22"       # SSH (ホスト側 22 と競合回避)
+    volumes:
+      - gitlab_config:/etc/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab.local:8929'
+        gitlab_rails['initial_root_password'] = 'P@ssw0rd1234'
+        # SSH ポート
+        gitlab_rails['gitlab_shell_ssh_port'] = 2224
+        # メモリ節約設定
+        puma['workers'] = 0
+        sidekiq['concurrency'] = 5
+        prometheus_monitoring['enable'] = false
+        grafana['enable'] = false
+    shm_size: "256m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/-/readiness"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+    networks:
+      - ci-net
+
+  # ---------------------------------------------------------------------------
+  # GitLab Runner (Docker executor)
+  # ---------------------------------------------------------------------------
+  gitlab-runner:
+    image: gitlab/gitlab-runner:latest
+    container_name: gitlab-runner
+    restart: unless-stopped
+    volumes:
+      - runner_config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      gitlab:
+        condition: service_healthy
+    networks:
+      - ci-net
+
+  # ---------------------------------------------------------------------------
+  # Jenkins
+  # ---------------------------------------------------------------------------
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"     # Web UI
+      - "50000:50000"   # Agent 接続
+    volumes:
+      - jenkins_home:/var/jenkins_home
+    environment:
+      JAVA_OPTS: >-
+        -Xmx512m
+        -Djenkins.install.runSetupWizard=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    networks:
+      - ci-net
+
+volumes:
+  gitlab_config:
+  gitlab_logs:
+  gitlab_data:
+  runner_config:
+  jenkins_home:
+
+networks:
+  ci-net:
+    driver: bridge

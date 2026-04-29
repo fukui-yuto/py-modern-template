@@ -1,0 +1,38 @@
+"""CLI エントリポイント(Typer)。"""
+
+from __future__ import annotations
+
+import typer
+
+from .config import settings
+from .logging import configure_logging, get_logger
+
+app = typer.Typer(help="A modern Python AI/LLM application template.")
+
+
+@app.callback()
+def main(
+    debug: bool = typer.Option(False, "--debug", help="デバッグモード"),
+) -> None:
+    """アプリケーション共通の初期化処理。"""
+    configure_logging(level="DEBUG" if debug else settings.log_level)
+
+
+@app.command()
+def hello(name: str = "world") -> None:
+    """動作確認用コマンド。"""
+    log = get_logger()
+    log.info("hello", name=name, app=settings.app_name)
+    typer.echo(f"Hello, {name}!")
+
+
+@app.command()
+def version() -> None:
+    """バージョンを表示する。"""
+    from . import __version__
+
+    typer.echo(f"py_modern_template {__version__}")
+
+
+if __name__ == "__main__":
+    app()

@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Jenkins Pipeline ジョブを API 経由で作成するスクリプト
+# 使い方: bash scripts/create-jenkins-job.sh <job-name> <repo-url>
+# 例:     bash scripts/create-jenkins-job.sh my-app http://gitlab:80/root/my-app.git
+# =============================================================================
+set -euo pipefail
+
+JOB_NAME="${1:?Usage: $0 <job-name> <repo-url>}"
+REPO_URL="${2:?Usage: $0 <job-name> <repo-url>}"
+JENKINS_URL="${JENKINS_URL:-http://localhost:8080}"
+JENKINS_USER="${JENKINS_USER:-admin}"
+JENKINS_TOKEN="${JENKINS_TOKEN:?JENKINS_TOKEN 環境変数を設定してください}"
+
+CONFIG_XML=$(cat <<EOF
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job">
+  <description>Auto-generated pipeline for ${JOB_NAME}</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">
+    <scm class="hudson.plugins.git.GitSCM" plugin="git">
+      <configVersion>2</configVersion>
+      <userRemoteConfigs>
+        <hudson.plugins.git.UserRemoteConfig>
+          <url>${REPO_URL}</url>
+        </hudson.plugins.git.UserRemoteConfig>
+      </userRemoteConfigs>
+      <branches>
+        <hudson.plugins.git.BranchSpec>
+          <name>*/main</name>
+        </hudson.plugins.git.BranchSpec>
+      </branches>
+    </scm>
+    <scriptPath>Jenkinsfile</scriptPath>
+    <lightweight>true</lightweight>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>
+EOF
+)
+
+echo "[INFO] Jenkins ジョブ '${JOB_NAME}' を作成中..."
+echo "[INFO] Jenkins URL: ${JENKINS_URL}"
+echo "[INFO] Repository:  ${REPO_URL}"
+
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "${JENKINS_URL}/createItem?name=${JOB_NAME}" \
+  --user "${JENKINS_USER}:${JENKINS_TOKEN}" \
+  -H "Content-Type: application/xml" \
+  --data-raw "${CONFIG_XML}")
+
+if [ "${HTTP_CODE}" = "200" ]; then
+    echo "[INFO] ジョブ '${JOB_NAME}' を作成しました"
+    echo "[INFO] URL: ${JENKINS_URL}/job/${JOB_NAME}/"
+elif [ "${HTTP_CODE}" = "400" ]; then
+    echo "[WARN] ジョブ '${JOB_NAME}' は既に存在します"
+else
+    echo "[ERROR] ジョブ作成に失敗しました (HTTP ${HTTP_CODE})"
+    exit 1
+fi

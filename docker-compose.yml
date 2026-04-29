@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: py-modern-template
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8501:8501"   # Streamlit（LLM extras 利用時）
