@@ -11,29 +11,35 @@
 
 services:
   gitlab:
-    image: gitlab/gitlab-ce:17-latest
+    image: gitlab/gitlab-ce:latest
     container_name: gitlab
-    hostname: gitlab.local
+    hostname: gitlab
     restart: unless-stopped
     ports:
       - "8929:80"
       - "2224:22"
+      - "5050:5050"
     volumes:
       - gitlab_config:/etc/gitlab
       - gitlab_logs:/var/log/gitlab
       - gitlab_data:/var/opt/gitlab
     environment:
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab.local:8929'
+        external_url 'http://gitlab'
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
         gitlab_rails['initial_root_password'] = 'P@ssw0rd1234'
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
+        registry_external_url 'http://gitlab:5050'
+        registry['enable'] = true
+        registry_nginx['listen_port'] = 5050
+        registry_nginx['listen_https'] = false
         puma['workers'] = 0
         sidekiq['concurrency'] = 5
         prometheus_monitoring['enable'] = false
-        grafana['enable'] = false
     shm_size: "256m"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/-/readiness"]
+      test: ["CMD", "curl", "-sf", "http://localhost:80/users/sign_in"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -55,18 +61,19 @@ services:
       - ci-net
 
   jenkins:
-    image: jenkins/jenkins:lts-jdk17
+    build:
+      context: ./infra/jenkins
     container_name: jenkins
     restart: unless-stopped
+    user: root
     ports:
       - "8080:8080"
       - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      JAVA_OPTS: >-
-        -Xmx512m
-        -Djenkins.install.runSetupWizard=true
+      JENKINS_HOME: /var/jenkins_home
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
       interval: 30s

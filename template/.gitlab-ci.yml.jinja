@@ -3,6 +3,9 @@ stages:
   - lint
   - test
   - build
+{%- if ci_platform == 'gitlab_and_jenkins' %}
+  - deploy
+{%- endif %}
 
 variables:
   UV_CACHE_DIR: .uv-cache
@@ -72,5 +75,93 @@ build:package:
       - dist/
   only:
     - tags
+{%- endif %}
+{%- if ci_platform == 'gitlab_and_jenkins' %}
+
+# ---------------------------------------------------------------------------
+# Jenkins ジョブの自動同期
+# ---------------------------------------------------------------------------
+# push 時に Jenkins Pipeline ジョブを自動作成 / 更新します。
+# GitLab CI/CD 変数に以下を設定してください:
+#   JENKINS_URL   : Jenkins の URL (例: http://jenkins:8080)
+#   JENKINS_USER  : Jenkins ユーザー名
+#   JENKINS_TOKEN : Jenkins API トークン
+# ---------------------------------------------------------------------------
+deploy:jenkins-sync:
+  stage: deploy
+  image: curlimages/curl:latest
+  variables:
+    JENKINS_JOB_NAME: "{{ project_slug }}"
+  script:
+    - |
+      CONFIG_XML=$(cat <<'JOBXML'
+      <?xml version='1.1' encoding='UTF-8'?>
+      <flow-definition plugin="workflow-job">
+        <description>Auto-synced from GitLab CI (${CI_PROJECT_URL})</description>
+        <keepDependencies>false</keepDependencies>
+        <properties/>
+        <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">
+          <scm class="hudson.plugins.git.GitSCM" plugin="git">
+            <configVersion>2</configVersion>
+            <userRemoteConfigs>
+              <hudson.plugins.git.UserRemoteConfig>
+                <url>${CI_REPOSITORY_URL}</url>
+              </hudson.plugins.git.UserRemoteConfig>
+            </userRemoteConfigs>
+            <branches>
+              <hudson.plugins.git.BranchSpec>
+                <name>*/main</name>
+              </hudson.plugins.git.BranchSpec>
+            </branches>
+          </scm>
+          <scriptPath>Jenkinsfile</scriptPath>
+          <lightweight>true</lightweight>
+        </definition>
+        <triggers/>
+        <disabled>false</disabled>
+      </flow-definition>
+      JOBXML
+      )
+
+      echo "[INFO] Jenkins ジョブ '${JENKINS_JOB_NAME}' を同期中..."
+
+      # ジョブが存在するか確認
+      HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+        --user "${JENKINS_USER}:${JENKINS_TOKEN}" \
+        "${JENKINS_URL}/job/${JENKINS_JOB_NAME}/api/json")
+
+      if [ "$HTTP_CODE" = "200" ]; then
+        # 既存ジョブを更新
+        echo "[INFO] 既存ジョブを更新します..."
+        HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+          --user "${JENKINS_USER}:${JENKINS_TOKEN}" \
+          -X POST "${JENKINS_URL}/job/${JENKINS_JOB_NAME}/config.xml" \
+          -H "Content-Type: application/xml" \
+          --data-raw "${CONFIG_XML}")
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "[PASS] ジョブ '${JENKINS_JOB_NAME}' を更新しました"
+        else
+          echo "[ERROR] ジョブ更新に失敗しました (HTTP ${HTTP_CODE})"
+          exit 1
+        fi
+      else
+        # 新規ジョブを作成
+        echo "[INFO] 新規ジョブを作成します..."
+        HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+          --user "${JENKINS_USER}:${JENKINS_TOKEN}" \
+          -X POST "${JENKINS_URL}/createItem?name=${JENKINS_JOB_NAME}" \
+          -H "Content-Type: application/xml" \
+          --data-raw "${CONFIG_XML}")
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "[PASS] ジョブ '${JENKINS_JOB_NAME}' を作成しました"
+        else
+          echo "[ERROR] ジョブ作成に失敗しました (HTTP ${HTTP_CODE})"
+          exit 1
+        fi
+      fi
+
+      echo "[INFO] Jenkins ジョブ URL: ${JENKINS_URL}/job/${JENKINS_JOB_NAME}/"
+  only:
+    - main
 {%- endif %}
 {% endif %}

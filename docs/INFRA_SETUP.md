@@ -4,6 +4,17 @@ Jenkins と GitLab をローカルの Docker Compose で立ち上げ、テンプ
 
 ---
 
+## アカウント情報
+
+| サービス | URL | ユーザー名 | パスワード |
+|---|---|---|---|
+| GitLab | http://localhost:8929 | `root` | `P@ssw0rd1234` |
+| Jenkins | http://localhost:8080 | `admin` | `admin` |
+
+> **注意:** これらはローカルテスト専用の認証情報です。外部に公開するサーバーでは絶対に使用しないでください。
+
+---
+
 ## 前提条件
 
 - Docker Desktop がインストール済み
@@ -34,17 +45,84 @@ docker compose -f docker-compose.infra.yml ps
 
 ---
 
-## 2. GitLab の初期設定
+## 2. 自動 E2E 検証
 
-### 2.1 ログイン
+インフラが起動したら、以下のコマンドで**テンプレートの CI/CD パイプラインを自動検証**できます:
+
+```bash
+bash scripts/verify-ci.sh          # 全検証 (GitLab CI + Jenkins)
+bash scripts/verify-ci.sh gitlab   # GitLab CI のみ
+bash scripts/verify-ci.sh jenkins  # Jenkins のみ
+```
+
+このスクリプトは以下を自動で行います:
+
+1. GitLab にテスト用プロジェクトを 3 つ作成（jenkins / gitlab / gitlab_and_jenkins モード）
+2. copier でプロジェクトを生成し、GitLab に push（ローカル用に `.gitlab-ci.yml` を自動パッチ）
+3. GitLab Runner を登録（既存ランナーは自動削除）
+4. GitLab CI パイプラインの完了を待機し、結果を確認（`build:docker` 含む全ステージ）
+5. Jenkins ジョブを API 経由で作成し、ビルドを実行・結果を確認
+
+最終出力が `ALL CHECKS PASSED` になれば、テンプレートの CI/CD は正常に動作しています。
+
+> **補足:** 検証スクリプトはローカルの HTTP レジストリに対応するため、`build:docker` ステージの dind 設定を自動パッチします（`--insecure-registry` の追加、TLS の無効化）。テンプレート本体は本番環境（HTTPS レジストリ）向けの設定になっています。
+
+---
+
+## 3. CI/CD パイプラインの仕組み
+
+### 3.1 CI モードの種類
+
+テンプレート生成時に選択する `ci_platform` によって、パイプラインの構成が変わります:
+
+| モード | GitLab CI | Jenkins | 説明 |
+|---|---|---|---|
+| `gitlab` | lint + test + build | なし | GitLab CI のみで完結 |
+| `jenkins` | なし | lint + test | Jenkins のみで完結 |
+| `gitlab_and_jenkins` | lint + test + build + **deploy** | deploy (Pull + Run) | GitLab CI がテスト＆ビルドし、Jenkins がデプロイ |
+
+### 3.2 ステージの実行順序
+
+GitLab CI のステージは以下の順序で実行されます。**各ステージは前のステージが全て成功した場合のみ実行**されます:
+
+```
+lint (ruff, mypy) → test (pytest) → build (docker) → deploy (jenkins-sync)
+```
+
+`build:docker` が失敗すると `deploy:jenkins-sync` はスキップされます。
+
+### 3.3 Jenkins ジョブの自動同期 (`gitlab_and_jenkins` モード)
+
+`gitlab_and_jenkins` モードでは、GitLab CI パイプラインの `deploy:jenkins-sync` ステージが **main ブランチへの push 時に Jenkins ジョブを自動作成/更新** します。
+
+- ジョブが存在しない → 新規作成
+- ジョブが既に存在する → 設定を更新
+
+この機能には以下の **GitLab CI/CD 変数** が必要です:
+
+| 変数名 | 説明 | 例 |
+|---|---|---|
+| `JENKINS_URL` | Jenkins サーバーの URL | `http://jenkins:8080` |
+| `JENKINS_USER` | Jenkins のユーザー名 | `admin` |
+| `JENKINS_TOKEN` | Jenkins の API トークン | `admin` または API トークン |
+
+**設定方法:**
+
+GitLab プロジェクト → **Settings** → **CI/CD** → **Variables** → **Add variable** で上記 3 つを追加してください。
+
+---
+
+## 4. GitLab の初期設定（手動構築する場合）
+
+> 自動検証スクリプト (`verify-ci.sh`) を使う場合はこのセクションは不要です。
+
+### 4.1 ログイン
 
 - URL: http://localhost:8929
 - ユーザー: `root`
 - パスワード: `P@ssw0rd1234`
 
-> **注意:** このパスワードはローカルテスト専用です。外部に公開するサーバーでは絶対に使用しないでください。
-
-### 2.2 アクセストークンの作成
+### 4.2 アクセストークンの作成
 
 1. 右上のアバター → **Edit profile** → **Access Tokens**
 2. 以下で作成:
@@ -53,17 +131,7 @@ docker compose -f docker-compose.infra.yml ps
    - Expiration: 任意
 3. 生成されたトークンを控える（以降 `GITLAB_TOKEN` と呼ぶ）
 
-### 2.3 テスト用リポジトリの作成
-
-**GUI で作成:**
-
-1. **New project** → **Create blank project**
-2. Project name: `my-test-app`
-3. Visibility: `Internal` または `Public`
-4. Initialize with README: チェックなし
-5. **Create project**
-
-**または CLI で作成:**
+### 4.3 テスト用リポジトリの作成
 
 ```bash
 curl -s --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
@@ -72,7 +140,7 @@ curl -s --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
   --form "visibility=internal" | python -m json.tool
 ```
 
-### 2.4 テンプレートから生成したコードを push
+### 4.4 テンプレートから生成したコードを push
 
 ```bash
 cd my-test-app
@@ -84,7 +152,7 @@ git push -u origin main
 # ユーザー: root / パスワード: GITLAB_TOKEN を入力
 ```
 
-### 2.5 GitLab Runner の登録
+### 4.5 GitLab Runner の登録
 
 1. GitLab Web UI → **Admin Area** (左下の歯車) → **CI/CD** → **Runners**
 2. **New instance runner** → タグなしで作成 → 表示される **registration token** を控える
@@ -98,52 +166,38 @@ docker exec -it gitlab-runner gitlab-runner register \
   --executor "docker" \
   --docker-image "ghcr.io/astral-sh/uv:python3.12-bookworm-slim" \
   --docker-network-mode "py-modern-template_ci-net" \
+  --docker-privileged \
   --description "local-docker-runner"
 ```
 
-> **注意:** `--url` はコンテナ間通信なので `http://gitlab:80`（サービス名）を指定する。
-
-登録後、GitLab の Runner 一覧にグリーンのアイコンで表示されれば成功。
-
-### 2.6 パイプラインの実行確認
-
-push 済みのリポジトリに `.gitlab-ci.yml` が含まれていれば、**CI/CD → Pipelines** にパイプラインが表示される。
-表示されない場合は、リポジトリの **Settings → CI/CD → Runners** で Runner が有効か確認。
+> **注意:**
+> - `--url` はコンテナ間通信なので `http://gitlab:80`（サービス名）を指定する
+> - `--docker-privileged` は Docker-in-Docker (dind) で必須
+> - `--docker-volumes` に docker.sock を **指定しない**（dind と競合するため）
 
 ---
 
-## 3. Jenkins の初期設定
+## 5. Jenkins の初期設定
 
-### 3.1 初回パスワードの取得
+### 5.1 ログイン
 
-```bash
-docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
-```
+- URL: http://localhost:8080
+- ユーザー: `admin`
+- パスワード: `admin`
 
-### 3.2 ログインとセットアップ
+> **注意:** カスタムイメージ (`infra/jenkins/`) によりセットアップウィザードのスキップ、プラグインのインストール、管理者ユーザーの作成が自動で行われます。
 
-1. URL: http://localhost:8080
-2. 初回パスワードを入力
-3. **Install suggested plugins** を選択（数分かかる）
-4. 管理者ユーザーを作成:
-   - ユーザー名: `admin`
-   - パスワード: 任意
-5. Jenkins URL: `http://localhost:8080/` のまま **Save and Finish**
-
-### 3.3 追加プラグインのインストール
-
-**Manage Jenkins** → **Plugins** → **Available plugins** から以下を検索してインストール:
+### 5.2 プリインストール済みプラグイン
 
 | プラグイン | 用途 |
 |---|---|
-| **Git** | Git リポジトリ連携（通常は初期インストール済み） |
-| **Pipeline** | Jenkinsfile によるパイプライン（通常は初期インストール済み） |
+| **Git** | Git リポジトリ連携 |
+| **Pipeline** (workflow-aggregator) | Jenkinsfile によるパイプライン |
 | **Docker Pipeline** | Docker agent でのビルド |
-| **GitLab** | GitLab webhook 連携（任意） |
+| **Docker Plugin** | Docker 連携 |
+| **Workspace Cleanup** | ワークスペースの自動クリーンアップ |
 
-インストール後、Jenkins を再起動。
-
-### 3.4 Pipeline ジョブの作成
+### 5.3 Pipeline ジョブの手動作成（自動同期を使わない場合）
 
 1. **New Item** → 名前: `my-test-app` → **Pipeline** → OK
 2. Pipeline セクション:
@@ -156,26 +210,74 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 
 > **注意:** Jenkins からの GitLab 接続は `http://gitlab:80`（Docker ネットワーク内のホスト名）を使う。
 
-### 3.5 ビルド結果の確認
+---
 
-**Build Now** をクリック → **Console Output** で各ステージの出力を確認。
-`Jenkinsfile` が正しければ各ステージが順に実行される（`jenkins` モード: Install → Lint → TypeCheck → Test、`gitlab_and_jenkins` モード: Pull Image → Deploy → Smoke Test）。
+## 6. 本番環境への移行
+
+ローカルテスト環境から本番環境の GitLab / Jenkins に移行する場合、以下の箇所を変更してください。
+
+### 6.1 GitLab CI/CD 変数の変更
+
+GitLab プロジェクトの **Settings → CI/CD → Variables** で以下を本番値に変更:
+
+| 変数名 | ローカルテスト値 | 本番値の例 |
+|---|---|---|
+| `JENKINS_URL` | `http://jenkins:8080` | `https://jenkins.example.com` |
+| `JENKINS_USER` | `admin` | 本番の Jenkins ユーザー名 |
+| `JENKINS_TOKEN` | `admin` | Jenkins の API トークン（※ パスワードではなく API トークンを推奨） |
+
+> **Jenkins API トークンの取得方法:**
+> Jenkins → ユーザーアイコン → **Configure** → **API Token** → **Add new Token** → 生成されたトークンをコピー
+
+### 6.2 `.gitlab-ci.yml` の変更
+
+テンプレートが生成する `.gitlab-ci.yml` は本番環境向けの設定になっています。変更不要です。
+
+- `build:docker` は TLS 有効な Docker-in-Docker (`DOCKER_TLS_CERTDIR: "/certs"`) を使用
+- `$CI_REGISTRY`、`$CI_REGISTRY_USER`、`$CI_REGISTRY_PASSWORD` は GitLab が自動設定
+
+### 6.3 `Jenkinsfile` の変更（`gitlab_and_jenkins` モード）
+
+`Jenkinsfile` 内の以下の環境変数を本番に合わせて変更:
+
+```groovy
+environment {
+    REGISTRY_URL  = "${env.REGISTRY_URL  ?: 'registry.gitlab.com'}"     // ← 本番の Registry URL
+    REGISTRY_CRED = "${env.REGISTRY_CRED ?: 'gitlab-registry-credentials'}" // ← Jenkins に登録した認証情報 ID
+    IMAGE_NAME    = "${env.IMAGE_NAME    ?: 'your_project'}"
+}
+```
+
+> **Jenkins 認証情報の登録:**
+> Jenkins → **Manage Jenkins** → **Credentials** → **Global** → **Add Credentials** で GitLab Registry のユーザー名/パスワード（またはトークン）を登録し、ID を `gitlab-registry-credentials` に設定。
+
+### 6.4 GitLab Runner の本番登録
+
+本番の GitLab Runner は以下のように登録します:
+
+```bash
+gitlab-runner register \
+  --non-interactive \
+  --url "https://gitlab.example.com" \
+  --token "<ランナー登録トークン>" \
+  --executor "docker" \
+  --docker-image "ghcr.io/astral-sh/uv:python3.12-bookworm-slim" \
+  --docker-privileged \
+  --description "production-runner"
+```
+
+> **注意:** 本番では `--docker-network-mode` は不要です（ローカル Docker ネットワーク用の設定）。
+
+### 6.5 セキュリティに関する注意
+
+- Jenkins の CSRF 保護は本番では**有効のまま**にしてください（ローカルテストでは自動無効化しています）
+- Jenkins API トークンは GitLab CI/CD 変数に **masked** で保存してください
+- GitLab Runner は本番では `--docker-privileged` を避け、kaniko 等の代替を検討してください
+- Container Registry には HTTPS を使用してください（テンプレートのデフォルト設定で対応済み）
 
 ---
 
-## 4. hosts ファイルの設定（任意）
-
-ブラウザから `gitlab.local` でアクセスしたい場合:
-
-```
-# Windows: C:\Windows\System32\drivers\etc\hosts
-# Mac/Linux: /etc/hosts
-127.0.0.1  gitlab.local
-```
-
----
-
-## 5. 停止・削除
+## 7. 停止・削除
 
 ```bash
 # 停止（データは保持）
@@ -187,7 +289,7 @@ docker compose -f docker-compose.infra.yml down -v
 
 ---
 
-## 6. トラブルシューティング
+## 8. トラブルシューティング
 
 ### GitLab が起動しない / 502 が出る
 
@@ -199,11 +301,30 @@ docker compose -f docker-compose.infra.yml down -v
 - Runner が登録されているか確認: `docker exec gitlab-runner gitlab-runner list`
 - Runner のタグが `.gitlab-ci.yml` と一致しているか確認（タグなしで登録推奨）
 - `--docker-network-mode` が正しいか確認（コンテナ間通信に必要）
+- 古いランナーが残っていないか確認（`docker exec gitlab-runner gitlab-runner unregister --all-runners` で全削除可能）
 
 ### Jenkins が GitLab に接続できない
 
 - Repository URL に `http://gitlab:80/...` を使っているか確認（`localhost` ではない）
 - `docker network inspect py-modern-template_ci-net` でネットワークを確認
+
+### `deploy:jenkins-sync` が失敗する
+
+- GitLab CI/CD 変数 (`JENKINS_URL`, `JENKINS_USER`, `JENKINS_TOKEN`) が設定されているか確認
+- Jenkins が起動しているか確認
+- Runner のコンテナから Jenkins にアクセスできるか確認（`network_mode` が `ci-net` であること）
+
+### `deploy:jenkins-sync` がスキップされる
+
+- `build:docker` が失敗していないか確認（deploy ステージは build 成功後にのみ実行）
+- `only: - main` の条件を確認（main ブランチへの push でのみ実行）
+
+### `build:docker` が失敗する
+
+- **`Readme file does not exist: README.md`**: Dockerfile で `README.md` を COPY しているか確認
+- **`device or resource busy` (docker.sock)**: Runner に `--docker-volumes "/var/run/docker.sock:..."` が設定されていないか確認（dind と競合する）
+- **`dial tcp: lookup gitlab: no such host`**: Runner の `--docker-network-mode` が `py-modern-template_ci-net` になっているか確認
+- **`https://gitlab:5050/v2/: http: server gave HTTP response to HTTPS client`**: ローカル HTTP レジストリには `--insecure-registry` が必要（verify-ci.sh が自動パッチ）
 
 ### ポートが競合する
 
@@ -217,24 +338,36 @@ ports:
 
 ---
 
-## 7. 構成図
+## 9. 構成図
 
 ```
-┌─────────────────────────────────────────────────┐
-│                 Docker Network: ci-net          │
-│                                                 │
-│  ┌──────────┐   ┌───────────────┐  ┌─────────┐ │
-│  │  GitLab   │   │ GitLab Runner │  │ Jenkins │ │
-│  │  :80      │◄──│ (Docker exec) │  │  :8080  │ │
-│  │           │   └───────────────┘  │         │ │
-│  │           │◄─────────────────────│ (SCM)   │ │
-│  └──────────┘                       └─────────┘ │
-│       ▲                                  ▲      │
-└───────│──────────────────────────────────│──────┘
-        │ :8929                            │ :8080
-   ┌────┴──────────────────────────────────┴────┐
-   │              Host Machine                   │
-   │         http://localhost:8929  (GitLab)     │
-   │         http://localhost:8080  (Jenkins)    │
-   └────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                 Docker Network: ci-net                   │
+│                                                         │
+│  ┌──────────┐   ┌───────────────┐      ┌─────────┐    │
+│  │  GitLab   │   │ GitLab Runner │      │ Jenkins │    │
+│  │  :80      │◄──│ (Docker exec) │      │  :8080  │    │
+│  │  Registry │   └───────┬───────┘      │         │    │
+│  │  :5050    │           │              │         │    │
+│  │           │     ┌─────▼──────┐       │         │    │
+│  │           │     │  CI ジョブ   │──────►│ (API)   │    │
+│  │           │     │ + dind     │       │         │    │
+│  │           │     │ (ci-net)   │       │         │    │
+│  │           │     └────────────┘       │         │    │
+│  │           │◄─────────────────────────│ (SCM)   │    │
+│  └──────────┘                           └─────────┘    │
+│       ▲                                      ▲         │
+└───────│──────────────────────────────────────│─────────┘
+        │ :8929 / :5050                        │ :8080
+   ┌────┴──────────────────────────────────────┴────┐
+   │              Host Machine                       │
+   │         http://localhost:8929  (GitLab)         │
+   │         http://localhost:8080  (Jenkins)        │
+   └────────────────────────────────────────────────┘
+
+パイプラインの流れ (gitlab_and_jenkins モード):
+  1. 開発者が GitLab に push
+  2. GitLab CI が lint → test → build:docker (dind) を実行
+  3. build:docker 成功後、deploy:jenkins-sync が Jenkins ジョブを自動作成/更新
+  4. Jenkins ジョブが Docker イメージを pull → デプロイ → スモークテスト
 ```
