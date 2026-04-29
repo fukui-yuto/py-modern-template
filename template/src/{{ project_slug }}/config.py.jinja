@@ -16,14 +16,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = Field(default="py_modern_template")
+    app_name: str = Field(default="{{ project_slug }}")
     log_level: str = Field(default="INFO")
     debug: bool = Field(default=False)
-
+{% if include_llm_extras %}
     # LLM 関連(extras=llm のときだけ使う)
     google_api_key: str | None = Field(default=None)
     langsmith_api_key: str | None = Field(default=None)
-    langsmith_project: str = Field(default="py_modern_template")
-
+    langsmith_project: str = Field(default="{{ project_slug }}")
+{% endif %}
 
 settings = Settings()

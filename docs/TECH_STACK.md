@@ -18,7 +18,7 @@
 | CLI | **Typer** | argparse / click | 型ヒントからコマンドを自動生成。Click ベース |
 | プリコミット | **pre-commit** | （手動チェック） | コミット前に自動で品質チェック |
 | コンテナ | **Docker** | （なし） | マルチステージビルドで本番イメージを最小化 |
-| CI/CD | **GitHub Actions / GitLab CI / Jenkins** | Jenkins のみ | 3 プラットフォーム対応で移行容易 |
+| CI/CD | **GitLab CI / Jenkins** | Jenkins のみ | 2 プラットフォーム対応で移行容易 |
 
 ---
 
@@ -185,8 +185,8 @@ def hello(name: str = "world") -> None:
 ```
 
 ```bash
-$ uv run py_modern_template hello --help
-Usage: py_modern_template hello [OPTIONS]
+$ uv run my_app hello --help
+Usage: my_app hello [OPTIONS]
 
   挨拶する。
 

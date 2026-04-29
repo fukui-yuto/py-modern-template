@@ -6,5 +6,12 @@ import pytest
 @pytest.fixture(autouse=True)
 def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """テスト中は外部環境変数の影響を受けないようにする。"""
-    for key in ["GOOGLE_API_KEY", "LANGSMITH_API_KEY"]:
+{%- if include_llm_extras %}
+    for key in [
+        "GOOGLE_API_KEY",
+        "LANGSMITH_API_KEY",
+    ]:
         monkeypatch.delenv(key, raising=False)
+{%- else %}
+    pass  # 必要に応じて isolate する環境変数を追加
+{%- endif %}

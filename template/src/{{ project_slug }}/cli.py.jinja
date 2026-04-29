@@ -7,7 +7,7 @@ import typer
 from .config import settings
 from .logging import configure_logging, get_logger
 
-app = typer.Typer(help="A modern Python AI/LLM application template.")
+app = typer.Typer(help="{{ project_description }}")
 
 
 @app.callback()
@@ -31,7 +31,7 @@ def version() -> None:
     """バージョンを表示する。"""
     from . import __version__
 
-    typer.echo(f"py_modern_template {__version__}")
+    typer.echo(f"{{ project_slug }} {__version__}")
 
 
 if __name__ == "__main__":

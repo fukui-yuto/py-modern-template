@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typer.testing import CliRunner
 
-from py_modern_template.cli import app
+from {{ project_slug }}.cli import app
 
 runner = CliRunner()
 
@@ -22,4 +22,4 @@ def test_hello_with_name() -> None:
 def test_version() -> None:
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "py_modern_template" in result.stdout
+    assert "{{ project_slug }}" in result.stdout

@@ -32,8 +32,8 @@
 | プロジェクトテンプレート展開 | **copier** | 最新 | cookiecutter 代替(再適用可能) |
 | プリコミット | **pre-commit** | 最新 | ruff を組み込み |
 | バリデーション | **Pydantic** | v2 | LLM 構造化出力にも利用 |
-| CI/CD | **GitHub Actions** または **GitLab CI** | - | 両対応の設定を用意 |
-| コンテナ | **Docker** + **devcontainer** | - | 開発環境の再現性確保 |
+| CI/CD | **GitLab CI** / **Jenkins** | - | 両対応の設定を用意 |
+| コンテナ | **Docker** | - | マルチステージビルドで本番イメージを最小化 |
 | LLM 関連(オプション) | LangChain / LangSmith / ChromaDB | - | extras で切替 |
 
 ### 重要な設計方針
@@ -48,17 +48,8 @@
 
 ```
 python-ai-template/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                  # Lint + Test + Type check
-│       └── release.yml             # タグ push でリリース
-├── .gitlab-ci.yml                  # GitLab 利用時のサンプル
-├── .devcontainer/
-│   ├── devcontainer.json
-│   └── Dockerfile
-├── .vscode/
-│   ├── settings.json               # ruff / mypy 統合設定
-│   └── extensions.json
+├── .gitlab-ci.yml                  # GitLab CI 設定
+├── Jenkinsfile                     # Jenkins Pipeline 設定
 ├── src/
 │   └── {{ project_slug }}/
 │       ├── __init__.py
@@ -79,7 +70,6 @@ python-ai-template/
 ├── .python-version                 # uv が読む(3.12)
 ├── .env.example
 ├── Dockerfile
-├── docker-compose.yml              # 開発用(任意の依存サービス)
 ├── justfile
 ├── pyproject.toml
 ├── uv.lock
@@ -136,10 +126,6 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.uv]
-# uv 固有設定
-dev-dependencies = []
 
 [tool.ruff]
 line-length = 100
@@ -276,57 +262,7 @@ repos:
         files: ^src/
 ```
 
-### 4.4 `.github/workflows/ci.yml`
-
-```yaml
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  lint-and-test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          enable-cache: true
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync --all-extras --dev
-
-      - name: Lint (ruff)
-        run: |
-          uv run ruff check .
-          uv run ruff format --check .
-
-      - name: Type check (mypy)
-        run: uv run mypy src tests
-
-      - name: Test (pytest)
-        run: uv run pytest
-
-      - name: Upload coverage
-        if: matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.xml
-```
-
-### 4.5 `.gitlab-ci.yml`(GitLab 利用時のサンプル)
+### 4.4 `.gitlab-ci.yml`
 
 ```yaml
 stages:
@@ -374,7 +310,7 @@ test:
         path: coverage.xml
 ```
 
-### 4.6 `Dockerfile`
+### 4.5 `Dockerfile`
 
 ```dockerfile
 # ============ builder ============
@@ -415,56 +351,7 @@ USER app
 ENTRYPOINT ["python", "-m", "{{ project_slug }}.cli"]
 ```
 
-### 4.7 `.devcontainer/devcontainer.json`
-
-```json
-{
-  "name": "Python AI Template",
-  "build": { "dockerfile": "Dockerfile" },
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "charliermarsh.ruff",
-        "ms-python.python",
-        "ms-python.mypy-type-checker",
-        "tamasfe.even-better-toml",
-        "redhat.vscode-yaml"
-      ],
-      "settings": {
-        "python.defaultInterpreterPath": "/workspaces/${containerWorkspaceFolderBasename}/.venv/bin/python",
-        "[python]": {
-          "editor.defaultFormatter": "charliermarsh.ruff",
-          "editor.formatOnSave": true,
-          "editor.codeActionsOnSave": {
-            "source.fixAll.ruff": "explicit",
-            "source.organizeImports.ruff": "explicit"
-          }
-        }
-      }
-    }
-  },
-  "postCreateCommand": "uv sync --all-extras && uv run pre-commit install"
-}
-```
-
-### 4.8 `.devcontainer/Dockerfile`
-
-```dockerfile
-FROM mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
-
-# uv インストール
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
-
-# just インストール
-RUN curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-
-USER vscode
-```
-
-### 4.9 `src/{{ project_slug }}/config.py`
+### 4.6 `src/{{ project_slug }}/config.py`
 
 ```python
 """アプリケーション設定。環境変数 / .env ファイルから読み込む。"""
@@ -497,7 +384,7 @@ class Settings(BaseSettings):
 settings = Settings()
 ```
 
-### 4.10 `src/{{ project_slug }}/logging.py`
+### 4.7 `src/{{ project_slug }}/logging.py`
 
 ```python
 """structlog による構造化ログ設定。"""
@@ -544,7 +431,7 @@ def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     return structlog.get_logger(name)
 ```
 
-### 4.11 `src/{{ project_slug }}/cli.py`
+### 4.8 `src/{{ project_slug }}/cli.py`
 
 ```python
 """CLI エントリポイント(Typer)。"""
@@ -577,7 +464,7 @@ if __name__ == "__main__":
     app()
 ```
 
-### 4.12 `tests/conftest.py`
+### 4.9 `tests/conftest.py`
 
 ```python
 from __future__ import annotations
@@ -592,7 +479,7 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(key, raising=False)
 ```
 
-### 4.13 `tests/test_smoke.py`
+### 4.10 `tests/test_smoke.py`
 
 ```python
 from __future__ import annotations
@@ -610,7 +497,7 @@ def test_hello() -> None:
     assert "Hello, Yuto!" in result.stdout
 ```
 
-### 4.14 `.env.example`
+### 4.11 `.env.example`
 
 ```bash
 # 動作環境
@@ -623,7 +510,7 @@ LANGSMITH_API_KEY=
 LANGSMITH_PROJECT=my-project
 ```
 
-### 4.15 `.gitignore`
+### 4.12 `.gitignore`
 
 ```gitignore
 # Python
@@ -655,9 +542,7 @@ build/
 .env.local
 
 # IDE
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
+.vscode/
 .idea/
 
 # OS
@@ -670,13 +555,13 @@ chroma_db/
 data/raw/
 ```
 
-### 4.16 `.python-version`
+### 4.13 `.python-version`
 
 ```
 3.12
 ```
 
-### 4.17 `copier.yml`(テンプレート化する場合)
+### 4.14 `copier.yml`(テンプレート化する場合)
 
 ```yaml
 _min_copier_version: "9.0"
@@ -720,13 +605,14 @@ include_llm_extras:
 ci_platform:
   type: str
   choices:
-    - github
-    - gitlab
-    - both
-  default: both
+    GitLab CI: gitlab
+    GitLab CI + Jenkins: gitlab_and_jenkins
+    Jenkins: jenkins
+    なし: none
+  default: gitlab
 ```
 
-### 4.18 `README.md`(テンプレート用)
+### 4.15 `README.md`(テンプレート用)
 
 ```markdown
 # {{ project_name }}
@@ -797,16 +683,16 @@ MIT
 3. `uv sync --all-extras` でロックファイル生成
 4. `src/` 配下のコードを書く
 5. `tests/` を書く
-6. CI / Docker / devcontainer を整備
+6. CI / Docker を整備
 7. `pre-commit` を導入
 8. README / docs を整備
 9. 最終的に `just ci` がローカルで通ることを確認
 
 ### 5.3 オプション機能(ユーザーに確認すべき項目)
 - LangChain / ChromaDB / Streamlit を含めるか
-- CI は GitHub Actions / GitLab CI / 両方
+- CI は GitLab CI / Jenkins / 両方 / なし
 - ライセンスは MIT / Apache-2.0 / Proprietary
-- Docker / devcontainer を含めるか
+- Docker (Dockerfile) を含めるか
 - `copier.yml` を含めて完全テンプレート化するか、それとも単なる雛形リポジトリにするか
 
 ### 5.4 動作確認スクリプト
@@ -848,7 +734,7 @@ docker build -t {{ project_slug }}:test .
 | cookiecutter | copier | テンプレート構文が似ているため移植容易。生成後の `copier update` が新たに使える |
 | flake8 / black / isort | ruff | `.flake8` / `pyproject.toml [tool.black]` / `.isort.cfg` を `pyproject.toml [tool.ruff]` に統合 |
 | Makefile | justfile | 構文がほぼ同じ。タブ依存がなくなる |
-| Jenkins | GitLab CI(または GitHub Actions) | Jenkinsfile のステージを `.gitlab-ci.yml` の job に変換。Self-hosted Runner で同等の実行環境を構築可能 |
+| Jenkins 単体 | GitLab CI + Jenkins 連携 | Jenkinsfile のステージを `.gitlab-ci.yml` の job に変換。Self-hosted Runner で同等の実行環境を構築可能 |
 
 ---
 

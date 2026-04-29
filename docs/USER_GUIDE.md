@@ -66,22 +66,51 @@ curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -
 
 ---
 
-## Step 1: プロジェクトのセットアップ
+## Step 1: プロジェクトの生成
+
+### copier のインストール
 
 ```bash
-# リポジトリを clone
-git clone <このリポジトリのURL> my-project
-cd my-project
+uv tool install copier
+```
 
-# セットアップ（どちらか1つ実行）
-bash scripts/bootstrap.sh    # 自動セットアップ（推奨）
+### プロジェクト生成
+
+```bash
+copier copy gh:fukui-yuto/py-modern-template ./my-project
+```
+
+対話式で質問に答えるだけで、プロジェクトが生成されます:
+
+```
+プロジェクト名(人間向け表記): My App
+パッケージ名(snake_case、自動生成): my_app
+プロジェクトの1行説明: 私の最初のPythonアプリ
+Python バージョン [3.11/3.12/3.13]: 3.12
+LLM 関連依存を含めるか: No
+CI/CD プラットフォーム: gitlab
+Docker (Dockerfile) を含めるか: Yes
+ライセンス: MIT
+```
+
+**何が起きるか:**
+
+- 回答に応じて**必要なファイルだけ**が `./my-project/` に生成される
+- パッケージ名 `my_app` でディレクトリやファイル内容が自動リネームされる
+- 不要なファイル(Jenkins, GitLab CI 等)は生成されない
+
+### セットアップ
+
+```bash
+cd my-project
+bash scripts/bootstrap.sh    # 自動セットアップ(推奨)
 # または
 just setup                    # just がインストール済みの場合
 ```
 
 **何が起きるか:**
 
-1. Python 3.12 がインストールされる（なければ）
+1. Python がインストールされる(なければ)
 2. `.venv/` に仮想環境が作成される
 3. 全依存パッケージがインストールされる
 4. pre-commit フックが設定される
@@ -92,14 +121,21 @@ just setup                    # just がインストール済みの場合
 ## Step 2: 動作確認
 
 ```bash
-uv run py_modern_template hello --name あなたの名前
+uv run my_app hello --name あなたの名前
 ```
 
 出力例:
 
 ```
-2026-04-29T12:00:00+09:00 [info     ] hello    app=py_modern_template name=あなたの名前
+2026-04-29T12:00:00+09:00 [info     ] hello    app=my_app name=あなたの名前
 Hello, あなたの名前!
+```
+
+バージョン確認もできます:
+
+```bash
+uv run my_app version
+# => my_app 0.1.0
 ```
 
 ---
@@ -109,7 +145,7 @@ Hello, あなたの名前!
 ### ファイルの追加場所
 
 ```
-src/py_modern_template/    ← ここにコードを書く
+src/my_app/    ← ここにコードを書く
 ├── __init__.py            （触らない）
 ├── cli.py                 ← コマンドを追加するならここ
 ├── config.py              ← 環境変数を追加するならここ
@@ -122,7 +158,7 @@ src/py_modern_template/    ← ここにコードを書く
 1. ファイルを作成:
 
 ```python
-# src/py_modern_template/calculator.py
+# src/my_app/calculator.py
 from __future__ import annotations
 
 
@@ -137,7 +173,7 @@ def add(a: int, b: int) -> int:
 # tests/test_calculator.py
 from __future__ import annotations
 
-from py_modern_template.calculator import add
+from my_app.calculator import add
 
 
 def test_add() -> None:
@@ -199,7 +235,7 @@ y = 2
 問題があるとエラーが表示される:
 
 ```
-src/py_modern_template/example.py:5:1: F841 Local variable `x` is assigned to but never used
+src/my_app/example.py:5:1: F841 Local variable `x` is assigned to but never used
 Found 1 error.
 ```
 
@@ -208,7 +244,7 @@ Found 1 error.
 型の間違いを検出:
 
 ```
-src/py_modern_template/example.py:10: error: Argument 1 to "add" has incompatible type "str"; expected "int"
+src/my_app/example.py:10: error: Argument 1 to "add" has incompatible type "str"; expected "int"
 ```
 
 #### `just test` — テスト
@@ -250,7 +286,7 @@ check yaml...............................................................Passed
 git push origin main
 ```
 
-Push すると CI（GitHub Actions / GitLab CI / Jenkins）が自動で品質チェックを実行します。
+Push すると CI（GitLab CI / Jenkins）が自動で品質チェックを実行します。
 
 ---
 
@@ -281,14 +317,14 @@ class Settings(BaseSettings):
 3. コード内で使う:
 
 ```python
-from py_modern_template.config import settings
+from my_app.config import settings
 print(settings.my_api_key)  # => "sk-xxxxx"
 ```
 
 ### ログを出したい
 
 ```python
-from py_modern_template.logging import get_logger
+from my_app.logging import get_logger
 
 log = get_logger()
 log.info("処理開始", user="Yuto", count=42)
@@ -309,7 +345,7 @@ def greet(name: str = typer.Argument("world")) -> None:
 実行:
 
 ```bash
-uv run py_modern_template greet Yuto
+uv run my_app greet Yuto
 # => こんにちは、Yutoさん！
 ```
 
@@ -332,7 +368,7 @@ uv run mypy src tests   # = just typecheck
 uv run pytest           # = just test
 ```
 
-### `ModuleNotFoundError: No module named 'py_modern_template'`
+### `ModuleNotFoundError: No module named 'my_app'`
 
 依存がインストールされていません:
 

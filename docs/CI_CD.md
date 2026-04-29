@@ -1,63 +1,40 @@
 # CI/CD パイプラインガイド
 
-3 つの CI/CD プラットフォーム（GitHub Actions / GitLab CI / Jenkins）の設定と使い方を説明します。
+CI/CD プラットフォーム（GitLab CI / Jenkins）の設定と使い方を説明します。
 
 ---
 
-## パイプライン概要
+## パイプライン構成パターン
 
-どのプラットフォームでも同じステップを実行します:
+copier の `ci_platform` 選択肢に応じて、パイプライン構成が変わります:
 
-```
-Install ──→ Lint ──→ TypeCheck ──→ Test
-              │
-              ├── ruff check（コード品質）
-              └── ruff format（フォーマット確認）
-```
-
----
-
-## 1. GitHub Actions
-
-### 設定ファイル
-
-- `.github/workflows/ci.yml` — PR / push 時の CI
-- `.github/workflows/release.yml` — タグ push 時のリリース
-
-### トリガー
-
-| イベント | 対象ブランチ | 実行内容 |
+| 選択肢 | GitLab CI の役割 | Jenkins の役割 |
 |---|---|---|
-| `push` | `main` | CI（Lint + TypeCheck + Test） |
-| `pull_request` | `main` | CI（Lint + TypeCheck + Test） |
-| `push` (tag `v*`) | — | リリース（CI + ビルド + GitHub Release 作成） |
+| `gitlab` | Lint + Test + Build | (なし) |
+| `gitlab_and_jenkins` | Lint + Test + Docker Build + Registry Push | Image Pull + Deploy |
+| `jenkins` | (なし) | Lint + Test (フル CI) |
 
-### マトリックスビルド
+### GitLab CI + Jenkins 連携時のフロー
 
-Python 3.11 / 3.12 / 3.13 の 3 バージョンで並列テスト:
-
-```yaml
-strategy:
-  matrix:
-    python-version: ["3.11", "3.12", "3.13"]
 ```
-
-### 使い方
-
-1. GitHub にリポジトリを作成して push するだけ
-2. **Actions** タブで実行結果を確認
-
-### リリース
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-# → release.yml が起動 → GitHub Release が自動作成される
+git push
+  → GitLab CI
+    ├── lint:ruff (ruff check + format)
+    ├── lint:mypy (型チェック)
+    ├── test:pytest (テスト)
+    └── build:docker (Docker Build → Registry Push)
+                          ↓
+                    GitLab Container Registry
+                          ↓
+                  Jenkins (Deploy Pipeline)
+                    ├── Pull Image
+                    ├── Deploy (コンテナ起動)
+                    └── Smoke Test
 ```
 
 ---
 
-## 2. GitLab CI
+## 1. GitLab CI
 
 ### 設定ファイル
 
@@ -67,10 +44,39 @@ git push origin v0.1.0
 
 ```
 lint ──→ test ──→ build
- │
- ├── lint:ruff（ruff check + format）
- └── lint:mypy（型チェック）
+ │                  │
+ ├── lint:ruff      └── build:docker (Docker イメージ)
+ └── lint:mypy          または build:package (Python パッケージ)
 ```
+
+### Docker イメージのビルド (Docker 選択時)
+
+`include_docker: Yes` の場合、`build` ステージで Docker イメージをビルドし、GitLab Container Registry に push します:
+
+```yaml
+build:docker:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE:latest
+  only:
+    - main
+    - tags
+```
+
+**GitLab CI の変数 (自動提供):**
+
+| 変数 | 内容 | 例 |
+|---|---|---|
+| `$CI_REGISTRY` | レジストリ URL | `registry.gitlab.com` |
+| `$CI_REGISTRY_IMAGE` | イメージパス | `registry.gitlab.com/group/project` |
+| `$CI_REGISTRY_USER` | レジストリユーザー | `gitlab-ci-token` |
+| `$CI_REGISTRY_PASSWORD` | レジストリパスワード | (自動) |
+| `$CI_COMMIT_SHORT_SHA` | コミットハッシュ(短縮) | `a1b2c3d4` |
 
 ### キャッシュ
 
@@ -97,13 +103,30 @@ cache:
 
 ---
 
-## 3. Jenkins
+## 2. Jenkins
 
-### 設定ファイル
+`ci_platform` の選択により、Jenkins の役割が異なります。
 
-`Jenkinsfile`
+### パターン A: `gitlab_and_jenkins` — デプロイパイプライン
 
-### パイプライン構成
+GitLab CI がビルドした Docker イメージを使ってデプロイします。
+
+```
+Pull Image ──→ Deploy ──→ Smoke Test
+```
+
+**Jenkins 側で必要な設定:**
+
+| 設定 | 内容 |
+|---|---|
+| GitLab Registry Credentials | Jenkins → Credentials に GitLab のアクセストークンを登録 |
+| 環境変数 `REGISTRY_URL` | GitLab Container Registry の URL |
+| 環境変数 `IMAGE_NAME` | イメージ名 (GitLab のプロジェクトパス) |
+| `.env` ファイル | デプロイ先に配置 |
+
+### パターン B: `jenkins` — フル CI パイプライン
+
+Jenkins 単体で lint/test を実行します (GitLab CI は使わない):
 
 ```
 Install ──→ Lint（並列）──→ TypeCheck ──→ Test
@@ -113,18 +136,6 @@ Install ──→ Lint（並列）──→ TypeCheck ──→ Test
 ```
 
 Lint ステージは `parallel` で 2 つのジョブを同時実行（高速化）。
-
-### Docker Agent
-
-```groovy
-agent {
-    docker {
-        image 'ghcr.io/astral-sh/uv:python3.12-bookworm-slim'
-    }
-}
-```
-
-Jenkins 側に Docker がインストールされていれば、ビルドエージェントとして uv 公式イメージを使用。
 
 ### ジョブの作成方法
 
@@ -173,15 +184,36 @@ uv run pytest
 
 ---
 
+## 用語: `--frozen` フラグとは
+
+CI 設定ファイル（`.gitlab-ci.yml`、`jenkins` モードの `Jenkinsfile`）では `uv sync --frozen` を使用しています。
+`gitlab_and_jenkins` モードの `Jenkinsfile` はデプロイ専用のため `uv` は使用しません。
+
+```bash
+# ローカル（開発中）
+uv sync --all-extras          # uv.lock が古ければ自動更新する
+
+# CI（自動テスト）
+uv sync --all-extras --frozen  # uv.lock を更新しない。古ければエラーにする
+```
+
+**なぜ CI では `--frozen` を使うのか？**
+
+- CI 環境で勝手にバージョンが変わると、テスト結果が不安定になる
+- `uv.lock` の更新は開発者がローカルで意図的に行うべき
+- `--frozen` を付けることで「lock ファイルと実際の依存が一致していなければ失敗」として検出できる
+
+---
+
 ## テスト用 CI/CD インフラ
 
 GitLab / Jenkins がない環境でも、Docker Compose でローカルに構築できます。
 詳細は [INFRA_SETUP.md](INFRA_SETUP.md) を参照してください。
 
 ```bash
-# 起動
-just infra-up
+# 起動（テンプレートリポジトリのルートで実行）
+docker compose -f docker-compose.infra.yml up -d
 
 # 停止
-just infra-down
+docker compose -f docker-compose.infra.yml down
 ```

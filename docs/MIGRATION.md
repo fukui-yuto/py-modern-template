@@ -193,30 +193,31 @@ test:
 
 ---
 
-## 5. cookiecutter → copier（またはこのテンプレートを直接利用）
+## 5. cookiecutter → copier
 
-### 直接利用する場合（推奨）
+copier を使って対話式にプロジェクトを生成します。
+手動でのリネームや `rm -rf .git` は不要です。
 
 ```bash
-git clone <このリポジトリ> my-new-project
+# 1. copier のインストール
+uv tool install copier
+
+# 2. プロジェクト生成(対話式)
+copier copy gh:fukui-yuto/py-modern-template ./my-new-project
+# → プロジェクト名、Python バージョン、CI/CD 等を対話式で選択
+
+# 3. セットアップ
 cd my-new-project
-rm -rf .git
-git init
-
-# プロジェクト名をリネーム
-# src/py_modern_template/ → src/my_project/
-# pyproject.toml の name / scripts を変更
-# 各ファイル内の py_modern_template → my_project に置換
+bash scripts/bootstrap.sh
 ```
 
-### copier を使う場合
+cookiecutter との違い:
 
-テンプレートを copier 対応させた場合:
-
-```bash
-copier copy gh:owner/py-modern-template ./my-project
-# 対話式で質問に答える
-```
+| 項目 | cookiecutter | copier |
+|---|---|---|
+| テンプレート更新の取り込み | 不可 | `copier update` で可能 |
+| 条件分岐(ファイル除外等) | 制限あり | Jinja2 で柔軟に可能 |
+| 再適用 | 不可 | 可能 |
 
 ---
 
@@ -285,6 +286,10 @@ pipeline {
 - `mypy` を追加
 - Lint を `parallel` で並列実行
 
+> **注意:** 上記は `jenkins` モード（Jenkins 単体で CI を実行）の例です。
+> `gitlab_and_jenkins` モードでは、Jenkins はデプロイ専用パイプライン（Pull Image → Deploy → Smoke Test）になります。
+> 詳細は [CI_CD.md](CI_CD.md) を参照してください。
+
 ---
 
 ## 7. requirements.txt / setup.py の廃止
@@ -325,7 +330,7 @@ uv.lock           ← requirements.txt の代わり（自動生成）
 - [ ] `uv run ruff format --check .` が差分 0 件で通る
 - [ ] `uv run mypy src tests` がエラー 0 件で通る
 - [ ] `uv run pytest` が全テストパスする
-- [ ] `uv run py_modern_template hello` が動作する
+- [ ] `uv run my_app hello` が動作する
 - [ ] `just ci` がローカルで通る
 - [ ] 旧ファイル（Pipfile, .flake8, setup.py 等）を削除した
 - [ ] CI/CD パイプラインを新 Jenkinsfile / ci.yml に更新した

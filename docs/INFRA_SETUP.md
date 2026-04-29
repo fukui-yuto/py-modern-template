@@ -42,6 +42,8 @@ docker compose -f docker-compose.infra.yml ps
 - ユーザー: `root`
 - パスワード: `P@ssw0rd1234`
 
+> **注意:** このパスワードはローカルテスト専用です。外部に公開するサーバーでは絶対に使用しないでください。
+
 ### 2.2 アクセストークンの作成
 
 1. 右上のアバター → **Edit profile** → **Access Tokens**
@@ -157,7 +159,7 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 ### 3.5 ビルド結果の確認
 
 **Build Now** をクリック → **Console Output** で各ステージの出力を確認。
-`Jenkinsfile` が正しければ Install → Lint → TypeCheck → Test の順に実行される。
+`Jenkinsfile` が正しければ各ステージが順に実行される（`jenkins` モード: Install → Lint → TypeCheck → Test、`gitlab_and_jenkins` モード: Pull Image → Deploy → Smoke Test）。
 
 ---
 

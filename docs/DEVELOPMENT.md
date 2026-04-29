@@ -14,11 +14,11 @@ git checkout -b feature/add-rag-pipeline
 
 ### 2. コードを書く
 
-`src/py_modern_template/` 配下にモジュールを追加:
+`src/my_app/` 配下にモジュールを追加:
 
 ```bash
 # 例: RAG パイプラインモジュールを追加
-touch src/py_modern_template/rag.py
+touch src/my_app/rag.py
 ```
 
 ### 3. テストを書く
@@ -69,7 +69,7 @@ git commit -m "feat: add RAG pipeline"
 - trailing-whitespace（末尾空白除去）
 - end-of-file-fixer（最終行改行）
 - check-yaml（YAML 構文チェック）
-- mypy（型チェック）
+- mypy（型チェック、`src/` 配下のみ対象）
 
 ### 6. Push & マージリクエスト
 
@@ -86,11 +86,11 @@ CI が自動実行され、全チェックが通ればマージ可能。
 ### 追加
 
 ```bash
-# 本番依存
+# 本番依存（pyproject.toml の [project.dependencies] に追加される）
 just add requests
 just add boto3
 
-# 開発依存
+# 開発依存（pyproject.toml の [project.optional-dependencies] dev に追加される）
 just add-dev httpx
 just add-dev factory-boy
 
@@ -154,12 +154,14 @@ uv run pytest --cov-report=html
 tests/
 ├── __init__.py
 ├── conftest.py          # 共有フィクスチャ
-├── test_smoke.py        # スモークテスト（基本動作確認）
-├── test_config.py       # config.py のテスト
-├── test_rag.py          # rag.py のテスト
-└── integration/         # 統合テスト（外部サービスが必要なもの）
+├── test_smoke.py        # スモークテスト（基本動作確認） ← 最初から含まれている
+├── test_xxx.py          # src/my_app/xxx.py に対応するテスト（例）
+└── integration/         # 統合テスト（外部サービスが必要なもの）（例）
     └── test_llm.py
 ```
+
+> テストファイルは `test_smoke.py` のみ最初から含まれています。
+> 他のファイルは開発に応じて追加してください。
 
 ---
 
@@ -180,12 +182,6 @@ just fmt
 ```bash
 just lint
 ```
-
-### VSCode での自動フォーマット
-
-`.vscode/settings.json` で設定済み:
-- **保存時に自動フォーマット**
-- **保存時に import 自動整理**
 
 ---
 
@@ -223,7 +219,7 @@ from __future__ import annotations
 
 ## CLI コマンドの追加方法
 
-`src/py_modern_template/cli.py` にコマンドを追加:
+`src/my_app/cli.py` にコマンドを追加:
 
 ```python
 @app.command()
@@ -240,7 +236,7 @@ def my_new_command(
 実行:
 
 ```bash
-uv run py_modern_template my-new-command input.txt --verbose
+uv run my_app my-new-command input.txt --verbose
 # または
 just run my-new-command input.txt --verbose
 ```
@@ -268,7 +264,7 @@ MAX_RETRIES=3
 ### 3. コード内で使う
 
 ```python
-from py_modern_template.config import settings
+from my_app.config import settings
 
 print(settings.my_api_key)
 print(settings.max_retries)

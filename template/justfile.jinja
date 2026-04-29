@@ -9,11 +9,11 @@ setup:
 
 # 依存追加(例: just add requests)
 add package:
-    uv add {{ package }}
+    uv add {{"{{ package }}"}}
 
-# 依存追加(dev)
+# 依存追加(dev: optional-dependencies の dev グループに追加)
 add-dev package:
-    uv add --dev {{ package }}
+    uv add --optional dev {{"{{ package }}"}}
 
 # Lint
 lint:
@@ -40,23 +40,13 @@ ci: lint typecheck test
 clean:
     rm -rf .venv .ruff_cache .mypy_cache .pytest_cache htmlcov dist build
     find . -type d -name __pycache__ -exec rm -rf {} +
+{% if include_docker %}
 
 # Docker ビルド
 docker-build:
-    docker build -t py-modern-template:latest .
+    docker build -t {{ project_slug }}:latest .
+{% endif %}
 
 # CLI 実行
 run *ARGS:
-    uv run py_modern_template {{ ARGS }}
-
-# インフラ起動 (GitLab + Jenkins)
-infra-up:
-    docker compose -f docker-compose.infra.yml up -d
-
-# インフラ停止
-infra-down:
-    docker compose -f docker-compose.infra.yml down
-
-# インフラ完全削除
-infra-clean:
-    docker compose -f docker-compose.infra.yml down -v
+    uv run {{ project_slug }} {{"{{ ARGS }}"}}

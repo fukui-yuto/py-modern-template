@@ -1,0 +1,84 @@
+# {{ project_name }}
+
+{{ project_description }}
+
+---
+
+## クイックスタート
+
+### 前提条件
+
+- [uv](https://docs.astral.sh/uv/) >= 0.4
+- [just](https://github.com/casey/just) (任意だが推奨)
+- Python {{ python_version }}
+
+### セットアップ
+
+```bash
+# 方法 1: bootstrap スクリプト(推奨)
+bash scripts/bootstrap.sh
+
+# 方法 2: just コマンド
+just setup
+
+# 方法 3: 手動
+uv sync --all-extras
+uv run pre-commit install
+cp .env.example .env
+```
+
+### 動作確認
+
+```bash
+uv run {{ project_slug }} hello --name Yuto
+# => Hello, Yuto!
+
+uv run {{ project_slug }} version
+# => {{ project_slug }} 0.1.0
+```
+
+---
+
+## 開発コマンド
+
+| 用途 | コマンド |
+|---|---|
+| コマンド一覧 | `just` |
+| 初回セットアップ | `just setup` |
+| Lint | `just lint` |
+| Format | `just fmt` |
+| 型チェック | `just typecheck` |
+| テスト | `just test` |
+| CI 相当(一括) | `just ci` |
+| CLI 実行 | `just run hello --name Yuto` |
+| 依存追加 | `just add requests` |
+| 開発依存追加 | `just add-dev httpx` |
+| クリーンアップ | `just clean` |
+{%- if include_docker %}
+| Docker ビルド | `just docker-build` |
+{%- endif %}
+
+---
+
+## ディレクトリ構成
+
+```
+{{ project_slug }}/
+├── src/
+│   └── {{ project_slug }}/
+│       ├── __init__.py   パッケージ定義
+│       ├── cli.py        CLI エントリポイント
+│       ├── config.py     Pydantic Settings
+│       └── logging.py    構造化ログ
+├── tests/                テスト
+├── scripts/              ユーティリティスクリプト
+├── pyproject.toml        プロジェクト設定(全集約)
+├── justfile              タスクランナー
+└── .pre-commit-config.yaml  コミット前チェック
+```
+
+---
+
+## ライセンス
+
+{{ license }}

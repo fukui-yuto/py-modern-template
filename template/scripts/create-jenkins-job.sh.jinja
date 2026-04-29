@@ -1,8 +1,8 @@
+{% if ci_platform in ['jenkins', 'gitlab_and_jenkins'] %}
 #!/usr/bin/env bash
 # =============================================================================
 # Jenkins Pipeline ジョブを API 経由で作成するスクリプト
 # 使い方: bash scripts/create-jenkins-job.sh <job-name> <repo-url>
-# 例:     bash scripts/create-jenkins-job.sh my-app http://gitlab:80/root/my-app.git
 # =============================================================================
 set -euo pipefail
 
@@ -42,9 +42,6 @@ EOF
 )
 
 echo "[INFO] Jenkins ジョブ '${JOB_NAME}' を作成中..."
-echo "[INFO] Jenkins URL: ${JENKINS_URL}"
-echo "[INFO] Repository:  ${REPO_URL}"
-
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
   -X POST "${JENKINS_URL}/createItem?name=${JOB_NAME}" \
   --user "${JENKINS_USER}:${JENKINS_TOKEN}" \
@@ -52,11 +49,11 @@ HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
   --data-raw "${CONFIG_XML}")
 
 if [ "${HTTP_CODE}" = "200" ]; then
-    echo "[INFO] ジョブ '${JOB_NAME}' を作成しました"
-    echo "[INFO] URL: ${JENKINS_URL}/job/${JOB_NAME}/"
+    echo "[INFO] ジョブ '${JOB_NAME}' を作成しました: ${JENKINS_URL}/job/${JOB_NAME}/"
 elif [ "${HTTP_CODE}" = "400" ]; then
     echo "[WARN] ジョブ '${JOB_NAME}' は既に存在します"
 else
     echo "[ERROR] ジョブ作成に失敗しました (HTTP ${HTTP_CODE})"
     exit 1
 fi
+{% endif %}

@@ -102,6 +102,10 @@ GitLab Web UI → プロジェクト → **Settings** → **CI/CD** → **Variab
 
 ### 2.1 Jenkinsfile の変更箇所
 
+`ci_platform` の選択により、生成される `Jenkinsfile` が異なります。
+
+#### パターン A: `jenkins` — CI パイプライン
+
 `Jenkinsfile` は**ほぼそのまま使えます**が、本番環境に合わせて以下を確認・変更してください。
 
 ```groovy
@@ -114,17 +118,27 @@ pipeline {
             args '--user root'
         }
     }
-    // ... 以降は変更不要 ...
+    // ... Install → Lint → TypeCheck → Test ...
 }
 ```
-
-**確認ポイント:**
 
 | 項目 | テスト環境 | 本番環境で確認すること |
 |---|---|---|
 | Docker イメージ | `ghcr.io/astral-sh/uv:...` | 社内プロキシ/ミラー経由でアクセスできるか |
 | Docker ソケット | 自動マウント | Jenkins Agent に Docker が使えるか |
 | タイムアウト | 15 分 | 必要に応じて調整 |
+
+#### パターン B: `gitlab_and_jenkins` — デプロイパイプライン
+
+GitLab CI がビルドした Docker イメージを Pull → Deploy → Smoke Test します。
+以下の環境変数を本番に合わせて変更してください。
+
+| 環境変数 | デフォルト値 | 本番で変更 |
+|---|---|---|
+| `REGISTRY_URL` | `registry.gitlab.com` | 社内 GitLab Registry の URL |
+| `REGISTRY_CRED` | `gitlab-registry-credentials` | Jenkins に登録した Credentials ID |
+| `IMAGE_NAME` | プロジェクト名 | GitLab のプロジェクトパス |
+| `IMAGE_TAG` | `latest` | 必要に応じてタグ戦略を設定 |
 
 ### 2.2 Jenkins ジョブ作成スクリプトの変更箇所
 

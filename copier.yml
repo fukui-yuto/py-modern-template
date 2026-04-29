@@ -1,0 +1,60 @@
+_min_copier_version: "9.0"
+_subdirectory: template
+
+project_name:
+  type: str
+  help: "プロジェクト名(人間向け表記)"
+  default: My App
+
+project_slug:
+  type: str
+  help: "パッケージ名(snake_case、自動生成)"
+  default: "{{ project_name | lower | replace(' ', '_') | replace('-', '_') }}"
+
+project_description:
+  type: str
+  help: "プロジェクトの1行説明"
+  default: A modern Python application.
+
+author_name:
+  type: str
+  help: "作成者名"
+  default: Yuto Fukui
+
+python_version:
+  type: str
+  help: "Python バージョン"
+  choices:
+    - "3.11"
+    - "3.12"
+    - "3.13"
+  default: "3.12"
+
+include_llm_extras:
+  type: bool
+  help: "LLM 関連依存(LangChain / ChromaDB / Streamlit)を含めるか"
+  default: true
+
+ci_platform:
+  type: str
+  help: "CI/CD プラットフォーム"
+  choices:
+    GitLab CI: gitlab
+    GitLab CI + Jenkins: gitlab_and_jenkins
+    Jenkins: jenkins
+    なし: none
+  default: gitlab
+
+include_docker:
+  type: bool
+  help: "Docker (Dockerfile) を含めるか"
+  default: true
+
+license:
+  type: str
+  help: "ライセンス"
+  choices:
+    MIT: MIT
+    Apache License 2.0: Apache-2.0
+    Proprietary(ライセンスファイルなし): proprietary
+  default: MIT

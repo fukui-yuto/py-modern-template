@@ -1,6 +1,6 @@
 # アーキテクチャ
 
-このドキュメントでは、py-modern-template の設計思想とアーキテクチャを説明します。
+このドキュメントでは、このテンプレートの設計思想とアーキテクチャを説明します。
 
 ---
 
@@ -25,9 +25,9 @@ pyproject.toml に統合されているもの:
 ### 2. src レイアウト
 
 ```
-py-modern-template/
+my_project/                        <-- copier で生成されたプロジェクト
 ├── src/
-│   └── py_modern_template/    <-- パッケージコード
+│   └── my_project/            <-- パッケージコード
 ├── tests/                      <-- テストコード
 └── pyproject.toml
 ```
@@ -35,7 +35,7 @@ py-modern-template/
 **なぜ src/ を使うのか？**
 
 - テスト時にインストール済みパッケージを使うことが保証される
-- プロジェクトルートの `py_modern_template/` を誤って import するバグを防ぐ
+- プロジェクトルートのパッケージを誤って import するバグを防ぐ
 - パッケージングツールとの互換性が高い
 
 ### 3. オプショナル依存
@@ -105,34 +105,47 @@ cli.py ──→ config.py
 
 ## CI/CD アーキテクチャ
 
-3 つの CI/CD プラットフォームに対応:
+GitLab CI + Jenkins の連携に対応:
 
 ```
-┌──────────────────────────────────────────────┐
-│              Git Repository                  │
-│                                              │
-│  git push / merge request                    │
-│       │            │            │            │
-│       ▼            ▼            ▼            │
-│  ┌─────────┐ ┌──────────┐ ┌─────────┐       │
-│  │ GitHub   │ │ GitLab   │ │ Jenkins │       │
-│  │ Actions  │ │ CI       │ │         │       │
-│  └────┬─────┘ └────┬─────┘ └────┬────┘       │
-│       │            │            │            │
-│       ▼            ▼            ▼            │
-│  ┌──────────────────────────────────────┐    │
-│  │        共通パイプライン               │    │
-│  │  Install → Lint → TypeCheck → Test   │    │
-│  └──────────────────────────────────────┘    │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│                   Git Repository                     │
+│                                                      │
+│  git push                                            │
+│       │                                              │
+│       ▼                                              │
+│  ┌──────────────────────────┐                        │
+│  │ GitLab CI                │                        │
+│  │  Lint → Test → Build     │                        │
+│  │              ↓           │                        │
+│  │     Docker Image Push    │                        │
+│  └──────────┬───────────────┘                        │
+│             │                                        │
+│             ▼                                        │
+│  ┌──────────────────────┐                            │
+│  │ Container Registry    │                           │
+│  └──────────┬────────────┘                           │
+│             │                                        │
+│             ▼                                        │
+│  ┌──────────────────────────┐                        │
+│  │ Jenkins (Deploy)          │                       │
+│  │  Pull → Deploy → Smoke   │                       │
+│  └──────────────────────────┘                        │
+└──────────────────────────────────────────────────────┘
 ```
 
-どの CI/CD を使っても同じステップを実行:
+**GitLab CI (CI):**
 
-1. **Install** — `uv sync --all-extras --dev`
-2. **Lint** — `uv run ruff check .` + `uv run ruff format --check .`
-3. **TypeCheck** — `uv run mypy src tests`
-4. **Test** — `uv run pytest`
+1. **Lint** — `uv run ruff check .` + `uv run ruff format --check .`
+2. **TypeCheck** — `uv run mypy src tests`
+3. **Test** — `uv run pytest`
+4. **Build** — `docker build` + Registry Push
+
+**Jenkins (CD):**
+
+1. **Pull** — Registry からイメージを取得
+2. **Deploy** — コンテナとして起動
+3. **Smoke Test** — 動作確認
 
 ---
 
