@@ -139,8 +139,17 @@ RUBY
 
     for proj in "${PROJECTS[@]}"; do
         info "Recreating GitLab project: ${proj}"
-        gitlab_api DELETE "/projects/root%2F${proj}" -o /dev/null 2>/dev/null || true
-        sleep 3
+        # GitLab CE の API 削除は遅延されるため、Rails console 経由で即時削除
+        docker exec -i gitlab gitlab-rails runner - <<DELRUBY 2>/dev/null || true
+p = Project.find_by_full_path("root/${proj}")
+if p
+  ::Projects::DestroyService.new(p, User.find_by_username('root')).execute
+  puts "destroyed"
+else
+  puts "not_found"
+end
+DELRUBY
+        sleep 2
         RESULT=$(gitlab_api POST "/projects" \
             --form "name=${proj}" \
             --form "visibility=public" \
@@ -487,6 +496,28 @@ XMLEOF
         fail "Jenkins CI build: ${BUILD_RESULT:-UNKNOWN}"
     fi
 fi
+
+# =============================================================================
+# Step 6: テスト用プロジェクトのクリーンアップ
+# =============================================================================
+section "Step 6: Cleanup Test Projects"
+
+info "Removing test projects from GitLab..."
+docker exec -i gitlab gitlab-rails runner - <<'CLEANRUBY' 2>/dev/null || true
+user = User.find_by_username('root')
+Project.where("name LIKE '%test%'").find_each do |p|
+  puts "Destroying: #{p.id} #{p.full_path}"
+  ::Projects::DestroyService.new(p, user).execute
+end
+puts "cleanup_done"
+CLEANRUBY
+pass "Test projects cleaned up"
+
+info "Removing test Jenkins jobs..."
+for job_name in "test-jenkins-ci" "test-gitlab-jenkins"; do
+    jenkins_api POST "/job/${job_name}/doDelete" -o /dev/null 2>/dev/null || true
+done
+pass "Jenkins jobs cleaned up"
 
 # =============================================================================
 # 結果サマリー
