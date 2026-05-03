@@ -50,18 +50,17 @@ docker compose -f docker-compose.infra.yml ps
 インフラが起動したら、以下のコマンドで**テンプレートの CI/CD パイプラインを自動検証**できます:
 
 ```bash
-bash scripts/verify-ci.sh          # 全検証 (GitLab CI + Jenkins)
-bash scripts/verify-ci.sh gitlab   # GitLab CI のみ
-bash scripts/verify-ci.sh jenkins  # Jenkins のみ
+bash scripts/verify-ci.sh
 ```
 
 このスクリプトは以下を自動で行います:
 
-1. GitLab にテスト用プロジェクトを 3 つ作成（jenkins / gitlab / gitlab_and_jenkins モード）
+1. GitLab にテスト用プロジェクト（`gitlab_and_jenkins` モード）を作成
 2. copier でプロジェクトを生成し、GitLab に push（ローカル用に `.gitlab-ci.yml` を自動パッチ）
 3. GitLab Runner を登録（既存ランナーは自動削除）
 4. GitLab CI パイプラインの完了を待機し、結果を確認（`build:docker` 含む全ステージ）
-5. Jenkins ジョブを API 経由で作成し、ビルドを実行・結果を確認
+5. `deploy:jenkins-sync` が Jenkins ジョブを自動作成したことを確認
+6. テスト用プロジェクト・Jenkins ジョブを自動クリーンアップ
 
 最終出力が `ALL CHECKS PASSED` になれば、テンプレートの CI/CD は正常に動作しています。
 
