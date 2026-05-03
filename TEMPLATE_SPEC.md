@@ -1,18 +1,22 @@
 # Python AI/LLM 開発テンプレートリポジトリ仕様書
 
-このドキュメントは、Claude Code に渡してテンプレートリポジトリを生成するための仕様書です。
+このドキュメントは、Claude Code に渡してテンプレートリポジトリを生成するための**初期仕様書**です。
+
+> **注意:** このドキュメントは初期設計時の仕様であり、実装中に多くの改善が加えられています。
+> 実際のテンプレートファイルとの間に差異がある場合は、**テンプレートファイル（`template/` 配下）が正**です。
+> 最新の設定は `copier.yml` および各テンプレートファイルを参照してください。
 
 ---
 
 ## 1. プロジェクト概要
 
 ### 目的
-インフラ仮想化エンジニアが AI/LLM 開発に取り組むための、2026年時点でのモダンな Python プロジェクトテンプレートを構築する。社内既存の `pyenv + pipenv + cookiecutter + GitLab CI → Jenkins` 構成を、`uv` 中心のモダンスタックに置き換える。
+インフラ仮想化エンジニアが Python 開発（AI/LLM を含む）に取り組むための、2026年時点でのモダンな Python プロジェクトテンプレートを構築する。社内既存の `pyenv + pipenv + cookiecutter + GitLab CI → Jenkins` 構成を、`uv` 中心のモダンスタックに置き換える。
 
 ### 用途
-- RAG + Agent システム開発(LangChain, ChromaDB, Streamlit など)
-- インフラ・仮想化関連のスクリプト・ツール開発
 - 一般的な Python アプリケーション全般
+- RAG + Agent システム開発(LangChain, ChromaDB, Streamlit など — オプション)
+- インフラ・仮想化関連のスクリプト・ツール開発
 
 ### リポジトリ名(推奨)
 `python-ai-template` または `py-modern-template`
@@ -93,7 +97,7 @@ description = "{{ project_description }}"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "{{ author_name }}", email = "{{ author_email }}" }]
+authors = [{ name = "{{ author_name }}" }]
 dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
@@ -126,6 +130,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ project_slug }}"]
 
 [tool.ruff]
 line-length = 100
@@ -192,9 +199,9 @@ setup:
 add package:
     uv add {{ package }}
 
-# 依存追加(dev)
+# 依存追加(dev: optional-dependencies の dev グループに追加)
 add-dev package:
-    uv add --dev {{ package }}
+    uv add --optional dev {{ package }}
 
 # Lint
 lint:
@@ -236,7 +243,7 @@ run *ARGS:
 ```yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+    rev: v0.11.8
     hooks:
       - id: ruff
         args: [--fix]
@@ -254,7 +261,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
+    rev: v1.15.0
     hooks:
       - id: mypy
         additional_dependencies: [pydantic>=2.7, types-requests]
@@ -277,27 +284,27 @@ variables:
 .uv-base:
   image: ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim
   before_script:
-    - uv sync --all-extras --dev --frozen
+    - uv sync --all-extras --frozen
   cache:
     key: uv-${PYTHON_VERSION}
     paths:
       - .uv-cache/
       - .venv/
 
-lint:
+lint:ruff:
   extends: .uv-base
   stage: lint
   script:
     - uv run ruff check .
     - uv run ruff format --check .
 
-typecheck:
+lint:mypy:
   extends: .uv-base
   stage: lint
   script:
     - uv run mypy src tests
 
-test:
+test:pytest:
   extends: .uv-base
   stage: test
   script:
@@ -328,6 +335,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
 # プロジェクト本体
+COPY README.md ./
 COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
@@ -565,32 +573,31 @@ data/raw/
 
 ```yaml
 _min_copier_version: "9.0"
+_subdirectory: template
 
 project_name:
   type: str
-  help: プロジェクト名(人間向け表記)
-  default: My AI App
+  help: "プロジェクト名(人間向け表記)"
+  default: My App
 
 project_slug:
   type: str
-  help: パッケージ名(snake_case)
-  default: "{{ project_name|lower|replace(' ', '_') }}"
+  help: "パッケージ名(snake_case、自動生成)"
+  default: "{{ project_name | lower | replace(' ', '_') | replace('-', '_') }}"
 
 project_description:
   type: str
-  help: 1 行説明
-  default: A modern Python AI/LLM application.
+  help: "プロジェクトの1行説明"
+  default: A modern Python application.
 
 author_name:
   type: str
+  help: "作成者名"
   default: Yuto Fukui
-
-author_email:
-  type: str
-  default: your-email@example.com
 
 python_version:
   type: str
+  help: "Python バージョン"
   choices:
     - "3.11"
     - "3.12"
@@ -600,16 +607,31 @@ python_version:
 include_llm_extras:
   type: bool
   default: true
-  help: LangChain / ChromaDB / Streamlit を依存に含めるか
+  help: "LLM 関連依存(LangChain / ChromaDB / Streamlit)を含めるか"
 
 ci_platform:
   type: str
+  help: "CI/CD プラットフォーム"
   choices:
     GitLab CI: gitlab
     GitLab CI + Jenkins: gitlab_and_jenkins
     Jenkins: jenkins
     なし: none
   default: gitlab
+
+include_docker:
+  type: bool
+  help: "Docker (Dockerfile) を含めるか"
+  default: true
+
+license:
+  type: str
+  help: "ライセンス"
+  choices:
+    MIT: MIT
+    Apache License 2.0: Apache-2.0
+    Proprietary(ライセンスファイルなし): proprietary
+  default: MIT
 ```
 
 ### 4.15 `README.md`(テンプレート用)

@@ -79,7 +79,7 @@ bash scripts/verify-ci.sh jenkins  # Jenkins のみ
 |---|---|---|---|
 | `gitlab` | lint + test + build | なし | GitLab CI のみで完結 |
 | `jenkins` | なし | lint + test | Jenkins のみで完結 |
-| `gitlab_and_jenkins` | lint + test + build + **deploy** | deploy (Pull + Run) | GitLab CI がテスト＆ビルドし、Jenkins がデプロイ |
+| `gitlab_and_jenkins` | lint + test + build + **jenkins-sync** | deploy (Pull + Run) | GitLab CI がテスト＆ビルド＆ジョブ同期し、Jenkins がデプロイ |
 
 ### 3.2 ステージの実行順序
 

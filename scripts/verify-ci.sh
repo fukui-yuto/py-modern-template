@@ -176,7 +176,7 @@ RUBY
     copier copy --defaults \
         --data project_name="Test Jenkins CI" \
         --data project_slug="test_jenkins_ci" \
-        --data description="Jenkins CI test" \
+        --data project_description="Jenkins CI test" \
         --data python_version="3.12" \
         --data include_llm_extras=false \
         --data ci_platform="jenkins" \
@@ -199,7 +199,7 @@ RUBY
     copier copy --defaults \
         --data project_name="Test GitLab CI" \
         --data project_slug="test_gitlab_ci" \
-        --data description="GitLab CI test" \
+        --data project_description="GitLab CI test" \
         --data python_version="3.12" \
         --data include_llm_extras=false \
         --data ci_platform="gitlab" \
@@ -222,7 +222,7 @@ RUBY
     copier copy --defaults \
         --data project_name="Test GitLab Jenkins" \
         --data project_slug="test_gitlab_jenkins" \
-        --data description="GitLab+Jenkins test" \
+        --data project_description="GitLab+Jenkins test" \
         --data python_version="3.12" \
         --data include_llm_extras=false \
         --data ci_platform="gitlab_and_jenkins" \

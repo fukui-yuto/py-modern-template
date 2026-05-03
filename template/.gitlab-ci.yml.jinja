@@ -94,7 +94,7 @@ deploy:jenkins-sync:
     JENKINS_JOB_NAME: "{{ project_slug }}"
   script:
     - |
-      CONFIG_XML=$(cat <<'JOBXML'
+      CONFIG_XML=$(cat <<JOBXML
       <?xml version='1.1' encoding='UTF-8'?>
       <flow-definition plugin="workflow-job">
         <description>Auto-synced from GitLab CI (${CI_PROJECT_URL})</description>

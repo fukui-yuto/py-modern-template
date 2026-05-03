@@ -49,7 +49,7 @@ copier copy gh:fukui-yuto/py-modern-template ./my-project
 説明:           RAGを使った社内検索
 Python:         3.12
 LLM extras:     Yes / No
-CI/CD:          gitlab / gitlab+jenkins / jenkins / none
+CI/CD:          GitLab CI / GitLab CI + Jenkins / Jenkins / なし
 Docker:         Yes / No
 ライセンス:      MIT / Apache-2.0 / Proprietary
 ```

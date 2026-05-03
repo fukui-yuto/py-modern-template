@@ -136,7 +136,7 @@ GitLab CI がビルドした Docker イメージを Pull → Deploy → Smoke Te
 | 環境変数 | デフォルト値 | 本番で変更 |
 |---|---|---|
 | `REGISTRY_URL` | `registry.gitlab.com` | 社内 GitLab Registry の URL |
-| `REGISTRY_CRED` | `gitlab-registry-credentials` | Jenkins に登録した Credentials ID |
+| `REGISTRY_CRED` | `gitlab-registry-credentials` | Jenkins に登録した Credentials ID（Jenkins → Credentials → Global で登録） |
 | `IMAGE_NAME` | プロジェクト名 | GitLab のプロジェクトパス |
 | `IMAGE_TAG` | `latest` | 必要に応じてタグ戦略を設定 |
 

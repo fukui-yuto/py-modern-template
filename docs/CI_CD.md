@@ -11,7 +11,7 @@ copier の `ci_platform` 選択肢に応じて、パイプライン構成が変�
 | 選択肢 | GitLab CI の役割 | Jenkins の役割 |
 |---|---|---|
 | `gitlab` | Lint + Test + Build | (なし) |
-| `gitlab_and_jenkins` | Lint + Test + Docker Build + Registry Push | Image Pull + Deploy |
+| `gitlab_and_jenkins` | Lint + Test + Docker Build + Registry Push + Jenkins Sync | Image Pull + Deploy |
 | `jenkins` | (なし) | Lint + Test (フル CI) |
 
 ### GitLab CI + Jenkins 連携時のフロー
@@ -59,8 +59,12 @@ build:docker:
   image: docker:27
   services:
     - docker:27-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE:latest .
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
     - docker push $CI_REGISTRY_IMAGE:latest
   only:
@@ -119,7 +123,7 @@ Pull Image ──→ Deploy ──→ Smoke Test
 
 | 設定 | 内容 |
 |---|---|
-| GitLab Registry Credentials | Jenkins → Credentials に GitLab のアクセストークンを登録 |
+| Jenkins Credentials (`REGISTRY_CRED`) | Jenkins → Credentials に GitLab Registry のアクセストークンを登録（ID: `gitlab-registry-credentials`） |
 | 環境変数 `REGISTRY_URL` | GitLab Container Registry の URL |
 | 環境変数 `IMAGE_NAME` | イメージ名 (GitLab のプロジェクトパス) |
 | `.env` ファイル | デプロイ先に配置 |
