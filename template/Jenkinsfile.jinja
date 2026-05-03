@@ -71,7 +71,6 @@ pipeline {
         // GitLab Container Registry の設定
         // 本番環境に合わせて変更してください
         REGISTRY_URL  = "${env.REGISTRY_URL  ?: 'registry.gitlab.com'}"
-        REGISTRY_CRED = "${env.REGISTRY_CRED ?: 'gitlab-registry-credentials'}"
         IMAGE_NAME    = "${env.IMAGE_NAME    ?: '{{ project_slug }}'}"
         IMAGE_TAG     = "${env.IMAGE_TAG     ?: 'latest'}"
         DEPLOY_NAME   = '{{ project_slug }}'
