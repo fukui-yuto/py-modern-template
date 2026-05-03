@@ -3,7 +3,7 @@ stages:
   - lint
   - test
   - build
-{%- if ci_platform == 'gitlab_and_jenkins' %}
+{%- if ci_platform == 'gitlab_and_jenkins' and include_docker %}
   - deploy
 {%- endif %}
 
@@ -76,7 +76,7 @@ build:package:
   only:
     - tags
 {%- endif %}
-{%- if ci_platform == 'gitlab_and_jenkins' %}
+{%- if ci_platform == 'gitlab_and_jenkins' and include_docker %}
 
 # ---------------------------------------------------------------------------
 # Jenkins ジョブの自動同期

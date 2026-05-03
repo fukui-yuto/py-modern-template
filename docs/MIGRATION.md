@@ -62,7 +62,7 @@ pipenv lock
 
 ```bash
 uv add requests
-uv add --dev pytest
+uv add --optional dev pytest
 uv run pytest
 uv lock
 ```
@@ -149,7 +149,7 @@ quote-style = "double"
 2. `[tool.black]` を `[tool.ruff.format]` に変換
 3. `.isort.cfg` を削除（`select = ["I"]` で isort が有効）
 4. flake8 / black / isort をアンインストール
-5. ruff をインストール: `uv add --dev ruff`
+5. ruff をインストール: `uv add --optional dev ruff`
 6. `uv run ruff check .` で確認
 
 ---
@@ -260,7 +260,7 @@ pipeline {
     }
     stages {
         stage('Install') {
-            steps { sh 'uv sync --all-extras --dev --frozen' }
+            steps { sh 'uv sync --all-extras --frozen' }
         }
         stage('Lint') {
             parallel {

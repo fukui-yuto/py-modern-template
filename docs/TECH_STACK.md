@@ -54,7 +54,7 @@ uv lock
 | Python インストール | `pyenv install 3.12` | `uv python install 3.12` |
 | 仮想環境作成 | `pipenv --python 3.12` | `uv sync` で自動作成 |
 | 依存追加 | `pipenv install requests` | `uv add requests` |
-| 開発依存追加 | `pipenv install --dev pytest` | `uv add --dev pytest` |
+| 開発依存追加 | `pipenv install --dev pytest` | `uv add --optional dev pytest` |
 | スクリプト実行 | `pipenv run python main.py` | `uv run python main.py` |
 | 設定ファイル | `Pipfile` + `Pipfile.lock` | `pyproject.toml` + `uv.lock` |
 

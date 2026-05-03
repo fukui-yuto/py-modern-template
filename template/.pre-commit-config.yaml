@@ -21,6 +21,6 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic>=2.7, types-requests]
+        additional_dependencies: [pydantic>=2.7, pydantic-settings>=2.3, types-requests]
         args: [--config-file=pyproject.toml]
         files: ^src/

@@ -136,10 +136,9 @@ GitLab CI + Jenkins の連携に対応:
 
 **GitLab CI (CI):**
 
-1. **Lint** — `uv run ruff check .` + `uv run ruff format --check .`
-2. **TypeCheck** — `uv run mypy src tests`
-3. **Test** — `uv run pytest`
-4. **Build** — `docker build` + Registry Push
+1. **Lint** — `ruff check` + `ruff format --check` + `mypy`（並列実行）
+2. **Test** — `uv run pytest`
+3. **Build** — `docker build` + Registry Push
 
 **Jenkins (CD):**
 
